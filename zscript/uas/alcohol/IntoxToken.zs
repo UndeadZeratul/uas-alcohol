@@ -49,6 +49,9 @@ class UaSAlcohol_IntoxToken : Inventory
 	const tox_heal_rate_max = 7; // intoxication heal rate, per second
 	const tox_heal_rate_min = 3;
 
+	const tox_blackout_threshold = 2000; // amount of intoxication before blacking out
+
+	UaS_AlcoholTracker intoxTracker;
 
 	// Shader stuff
 
@@ -57,41 +60,20 @@ class UaSAlcohol_IntoxToken : Inventory
 	int txshd_r;
 	int txshd_dir;
 
-	bool intoxsh_enabled;
-
-	void IntoxShader_Enable(PlayerInfo pl)
-	{
-		Shader.SetUniform1i(pl, "UASAlcohol_Intoxication", "res_w", CVar.getCVar("menu_resolution_custom_width", pl).GetInt());
-		Shader.SetUniform1i(pl, "UASAlcohol_Intoxication", "res_h", CVar.getCVar("menu_resolution_custom_height", pl).GetInt());
-		Shader.SetEnabled(pl, "UASAlcohol_Intoxication", true);
-	}
-	void IntoxShader_Disable(PlayerInfo pl)
-	{
-		Shader.SetEnabled(pl, "UASAlcohol_Intoxication", false);
-	}
-	void IntoxShader_SetRadius(PlayerInfo pl, int r)
-	{
-		Shader.SetUniform1i(pl, "UASAlcohol_Intoxication", "radius", r);
-	}
-
-
 	override void Tick()
 	{
 		super.tick();
 
-		if(!owner || !(owner is "HDPlayerPawn"))
-			return;
+		if(!owner || !(owner is "HDPlayerPawn")) return;
 
 		double intox_perc = double(self.amount) / max_effect_amt;
 		HDPlayerPawn hdp = HDPlayerPawn(owner);
 
-		// ----------------------
-		// Intoxication self-cure
-		// ----------------------
-
-		if(self.amount > 1 && !(level.time % 35)){
-			int tox_heal_rate = tox_heal_rate_min + ceil((tox_heal_rate_max - tox_heal_rate_min) * intox_perc);
-			self.amount -= tox_heal_rate;
+		// Set up tracker connection
+		intoxTracker = UaS_AlcoholTracker(owner.FindInventory("UaS_AlcoholTracker"));
+		if (!intoxTracker) {
+			console.printf("no alcohol tracker!");
+			return;
 		}
 
 		// ----------------
@@ -100,54 +82,72 @@ class UaSAlcohol_IntoxToken : Inventory
 
 		// Looping between min and max blur shader radius
 
-		IntoxShader_SetRadius(owner.player, 1);
+		if (txshd_dir == 0) txshd_dir = 1;
 
-		if(!intoxsh_enabled && self.amount >= min_effect_amt)
-			IntoxShader_Enable(owner.player);
-		else if(intoxsh_enabled && self.amount < min_effect_amt)
-			IntoxShader_Disable(owner.player);
+		if (amount >= min_effect_amt) IntoxShader.Enable(owner.player);
+		else if (amount < min_effect_amt) IntoxShader.Disable(owner.player);
 
-		if(txshd_dir == 0)
-			txshd_dir = 1;
+		if (txshd_dir == 0) txshd_dir = 1;
+
 		txshd_minr = intox_perc * 2;
 		txshd_maxr = intox_perc * 7;
 
-		if(level.time % txshd_freq == 0)
-			txshd_r += txshd_dir;
+		if (Level.time % txshd_freq == 0) txshd_r += txshd_dir;
 
-		if(txshd_r >= txshd_maxr)
-			txshd_dir = -1;
-		if(txshd_r <= txshd_minr)
-			txshd_dir = 1;
+		if (txshd_r >= txshd_maxr) txshd_dir = -1;
+		if (txshd_r <= txshd_minr) txshd_dir = 1;
 		
-		IntoxShader_SetRadius(owner.player, txshd_r);
-
-
-		// Stuttering and moving
-
-		if(self.amount < min_effect_amt)
-			return;
-
-		double sttr_chance = min_sttr_chance + (max_sttr_chance - min_sttr_chance) * intox_perc;
-		if(frandom(0.0, 1.0) < sttr_chance){
-			owner.angle += frandom(-angle_sttr, angle_sttr);
-			owner.pitch += frandom(-pitch_sttr, pitch_sttr);
-		}
-		double move_chance = min_move_chance + (max_move_chance - min_move_chance) * intox_perc;
-		if(frandom(0.0, 1.0) < move_chance){
-			owner.A_ChangeVelocity(frandom(-move_amt, move_amt), frandom(-move_amt, move_amt));
-		}
-
+		IntoxShader.SetRadius(owner.player, txshd_r);
 
 		// Blood pressure increase
 
 		double bpinc_chance = bpinc_min_chance + (bpinc_max_chance - bpinc_min_chance) * intox_perc;
-		if(hdp.bloodpressure <= bp_max && frandom(0.0, 1.0) < bpinc_chance)
+		if (hdp.bloodpressure <= bp_max && frandom(0.0, 1.0) < bpinc_chance) {
 			hdp.bloodpressure++;
+		}
+
+		// Black-out Intoxication
+
+		// Passing out drunk? In my Hideous? More likely than you think...
+		if (
+			!hdp.CountInv('UaSAlcohol_BlackoutDrug')
+			&& tox_blackout_threshold > 0
+			&& amount > tox_blackout_threshold
+			&& !hdp.incapacitated
+		) {
+			hdp.giveInventory("UaSAlcohol_BlackoutDrug", random(30, amount - tox_blackout_threshold));
+		}
+
+		// Stuttering and moving
+
+		// Crouching and being incapped no longer jitters you around,
+		// bc this is simulating difficulty holding balance,
+		// if you crouch or lay down, that's mitigated - [Cozi]
+		if (
+			!(
+				amount < min_effect_amt
+				|| hdp.Incapacitated > 0
+				|| hdp.player.crouchfactor < 1
+			)
+		) {
+			double sttr_chance = min_sttr_chance + (max_sttr_chance - min_sttr_chance) * intox_perc;
+			if (frandom(0.0, 1.0) < sttr_chance) {
+				owner.angle += frandom(-angle_sttr, angle_sttr);
+				owner.pitch += frandom(-pitch_sttr, pitch_sttr);
+			}
+
+			double move_chance = min_move_chance + (max_move_chance - min_move_chance) * intox_perc;
+			if (frandom(0.0, 1.0) < move_chance) {
+				owner.A_ChangeVelocity(frandom(-move_amt, move_amt), frandom(-move_amt, move_amt));
+			}
+		}
 
 
+		// Making sounds
+
+		// Only make sounds if "phsyically capable" meaning you're not incapacitated or black-out drunk
 		double snd_chance = min_snd_chance + (max_snd_chance - min_snd_chance) * intox_perc;
-		if(frandom(0.0, 1.0) < snd_chance)
+		if(!hdp.incapacitated && frandom(0.0, 1.0) < snd_chance)
 		{
 			int type = frandom(0, 7);
 			if(type < 4)
@@ -155,7 +155,7 @@ class UaSAlcohol_IntoxToken : Inventory
 			else if(type < 7)
 				owner.A_StartSound(hdp.medsound);
 			else
-				owner.A_StartSound(hdp.tauntsound);
+				EventHandler.SendNetworkEvent('hd_taunt');
 		}
 
 		// ----------------
@@ -168,12 +168,14 @@ class UaSAlcohol_IntoxToken : Inventory
 			if(frandom(0.0, 1.0) < hp_regen_chance)
 				hdp.giveInventory("Health", 1);
 		}
+
 		if(hdp.incaptimer > 1)
 		{
 			int incap_regen = incap_regen_min + (incap_regen_max - incap_regen_min) * intox_perc;
 			hdp.incaptimer -= incap_regen;
 		}
-		if(hdp.fatigue > 0 && !(level.time % 35))
+
+		if(hdp.fatigue > 0 && !(Level.time % TICRATE))
 		{
 			int fatigue_regen = fatigue_regen_min + (fatigue_regen_max - fatigue_regen_min) * intox_perc;
 			hdp.fatigue -= fatigue_regen;

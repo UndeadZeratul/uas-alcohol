@@ -1,30 +1,68 @@
-/// Base alcohol consumable class.
+/**
+* Base alcohol consumable class.
+*/
+class UaS_Alcohol : UaS_Consumable {
+    int intox_per_bulk;
+    property IntoxPerbulk:intox_per_bulk;
+    
+    UaS_AlcoholTracker intoxTracker;
 
-class UaS_Alcohol : UaS_Consumable
-{
-	int intox_per_bulk;
-	property IntoxPerbulk : intox_per_bulk;
+    default {
+        +UaS_Consumable.DRINKABLE
 
+        UaS_Consumable.SpoilRate 0;
+    }
 
-	int prevbulk;
+    override void OnConsume() {
+        HDPlayerPawn hdp = HDPlayerPawn(intoxTracker.owner);
+        if (hdp) {
+            ConsumeAlcohol();
+        }
+    }
 
-	override void PostBeginPlay()
-	{
-		super.PostBeginPlay();
-		prevbulk = weaponbulk();
-	}
-	override void Tick()
-	{
-		super.tick();
-		weaponstatus[UGCS_SPOILAGE] = 0; // no spoiling
+    void ConsumeAlcohol() {
+        if (intox_per_bulk <= 0) return;
 
-		if(!tracker || !tracker.owner)
-			return;
-		HDPlayerPawn hdp = HDPlayerPawn(tracker.owner);
-		int bulk = prevbulk - weaponbulk();
-		if(bulk > 0){
-			hdp.GiveInventory("UaSAlcohol_IntoxToken", intox_per_bulk * bulk);
-		}
-		prevbulk = weaponbulk();
-	}
+        let intox = intox_per_bulk * diffBulk;
+
+        if (hd_debug) console.printf("Consuming "..intox.." units of alcohol");
+
+        intoxTracker.Consume(intox);
+    }
+
+    override void DoEffect() {
+        if (!CriticalChecks()) return;
+        if (!CriticalAlcoholChecks()) return;
+
+        DoAlcoholMessage();
+        HandleInput();
+        CheckAutoDrop();
+        SetHelpText();
+    }
+
+    bool CriticalAlcoholChecks() {
+        // Set up tracker connection
+        intoxTracker = UaS_AlcoholTracker(owner.FindInventory("UaS_AlcoholTracker"));
+        if (!intoxTracker) { console.printf("no alcohol tracker!"); return false; }
+
+        return true;
+    }
+
+    void DoAlcoholMessage() {
+        string statusMessage;
+        statusMessage.appendformat(DisplayDescription());
+        statusMessage.appendformat(DisplayFoodlist());
+        statusMessage.appendformat(DisplayIntox());
+        statusMessage.appendformat(DisplayNutrition());
+        statusMessage.appendformat(DisplayStatus());
+        A_WeaponMessage(statusMessage);
+    }
+
+    string DisplayIntox() {
+        string r;
+        if (intox_per_bulk > 0) {
+            r.appendformat(Stringtable.Localize("$UAS_ALCOHOL_DISPLAY_INTOX"), intox_per_bulk * 2);
+        }
+        return r;
+    }
 }

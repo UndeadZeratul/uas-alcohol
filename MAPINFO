@@ -1,3 +1,4 @@
 GameInfo {
-	AddEventHandlers = "UaS_AlcoholEventHandler"
+	/* AddEventHandlers = "UaS_AlcoholEventHandler" */
+	AddEventHandlers = "UaS_Alcohol_Bootstrap"
 }
