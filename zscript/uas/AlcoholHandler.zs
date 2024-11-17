@@ -10,7 +10,7 @@ class UaS_AlcoholEventHandler : StaticEventHandler {
 
             if(player.camera) playerCam = player.camera;
 
-            if(playerCam) enableShader = playerCam.countInv("UasAlcohol_IntoxToken") >= UaSAlcohol_IntoxToken.min_effect_amt;
+            if(playerCam) enableShader = playerCam.countInv("UasAlcohol_IntoxDrug") >= UaSAlcohol_IntoxDrug.min_effect_amt;
 
             IntoxShader.SetEnabled(player, enableShader);
         }

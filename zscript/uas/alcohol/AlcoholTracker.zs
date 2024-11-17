@@ -2,6 +2,7 @@ class UaS_AlcoholTracker : Inventory {
     int intox;
     int mouth_intox;
     int pending_intox;
+    float intox_quality;
 
     int jogged;
     bool drinking;
@@ -25,21 +26,28 @@ class UaS_AlcoholTracker : Inventory {
         if (o.runwalksprint >= 0) jogged++;
         if (o.beatcount > 0) return;
 
-        let intoxTokens = o.CountInv('UaSAlcohol_IntoxToken');
+        let intoxTokens = o.CountInv('UaSAlcohol_IntoxDrug');
         let addictTokens = o.CountInv('UaSAlcohol_AddictDrug');
 
         // Base Intox Drain
-        if (intox > 0 && o.beatcounter % 35 == 0) {
-            let burnoff = min(random(1, intox), random(1, intox));
+        if (intox > 0 && o.beatcounter % 2 == 0) {
+            let burnoff = int(ceil(min(intox * frandom(0.001, 0.01), intox * frandom(0.001, 0.01))));
 
             if (hd_debug) console.printf("Burning off "..burnoff.." units of Intoxication");
 
             intox = max(intox - burnoff, -100);
 
-            if (random() < burnoff) {
-                if (hd_debug) console.printf("Gained a point of addiction, current: "..(addictTokens + 1));
+            // Quality of Alcohol determines chances of addicition:
+            // -100% -> 2x chance
+            //    0% -> 1x chance
+            // +100% -> 0x chance
+            let addictRatio = (2.0 - (intox_quality + 1.0));
+            if ((random() * addictRatio) > burnoff) {
+                let newAddict = int(ceil(addictRatio));
 
-                o.GiveInventory('UaSAlcohol_AddictDrug', 1);
+                if (hd_debug) console.printf("Gained a point of addiction, current: "..(addictTokens + newAddict));
+
+                o.GiveInventory('UaSAlcohol_AddictDrug', newAddict);
             }
         }
 
@@ -53,13 +61,19 @@ class UaS_AlcoholTracker : Inventory {
             pending_intox -= diffIntox;
         }
 
+        // Sync up IntoxToken Counts
         let diffIntox = abs(intoxTokens - intox);
-        if (intoxTokens < intox) o.GiveInventory('UaSAlcohol_IntoxToken', diffIntox);
-        else if (intoxTokens > intox) o.TakeInventory('UaSAlcohol_IntoxToken', diffIntox);
+        if (intoxTokens < intox) o.GiveInventory('UaSAlcohol_IntoxDrug', diffIntox);
+        else if (intoxTokens > intox) o.TakeInventory('UaSAlcohol_IntoxDrug', diffIntox);
     }
 
-    void Consume(int addintox = 0) {
-        if (hd_debug) console.printf("Comsuming "..addintox.." units of intox...");
-        pending_intox += addintox;
+    void Consume(int addIntox = 0, float intoxQuality = 0.0) {
+        let currentIntox = pending_intox;
+
+        if (hd_debug) console.printf("Comsuming "..addIntox.." units of intox...");
+        
+        // Add new amount of intox, then adjust the pending amount of quality of that intox by averaging it against what's already there.
+        pending_intox += addIntox;
+        intox_quality = ((intox_quality * currentIntox) + (addIntox * intoxQuality)) / pending_intox;
     }
 }

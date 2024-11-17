@@ -4,6 +4,9 @@
 class UaS_Alcohol : UaS_Consumable {
     int intox_per_bulk;
     property IntoxPerbulk:intox_per_bulk;
+
+    float intox_quality;
+    property IntoxQuality:intox_quality;
     
     UaS_AlcoholTracker intoxTracker;
 
@@ -27,7 +30,7 @@ class UaS_Alcohol : UaS_Consumable {
 
         if (hd_debug) console.printf("Consuming "..intox.." units of alcohol");
 
-        intoxTracker.Consume(intox);
+        intoxTracker.Consume(intox, clamp(intox_quality, -1.0, 1.0));
     }
 
     override void DoEffect() {
@@ -61,7 +64,7 @@ class UaS_Alcohol : UaS_Consumable {
     string DisplayIntox() {
         string r;
         if (intox_per_bulk > 0) {
-            r.appendformat(Stringtable.Localize("$UAS_ALCOHOL_DISPLAY_INTOX"), intox_per_bulk * 2);
+            r.appendformat(Stringtable.Localize("$UAS_ALCOHOL_DISPLAY_INTOX"), intox_per_bulk);
         }
         return r;
     }
