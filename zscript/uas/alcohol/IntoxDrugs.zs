@@ -5,37 +5,37 @@ class UaSAlcohol_IntoxDrug : HDDrug {
         Inventory.Amount 1;
         Inventory.MaxAmount 100000;
     }
-    
+
     // TODO: Refactor into CVARs
 
     const min_effect_amt = 3000;
     const max_effect_amt = 10000; // don't raise this or any shader effects higher than they are already
-    const txshd_freq = 35; // blur radius change per tick
+    const txshd_freq = 35; // blur radius change per heartbeat
 
-    const min_sttr_chance = 0.0005; // chance per tick to stutter (random camera angle + pitch shift)
-    const max_sttr_chance = 0.035;
+    const min_sttr_chance = 0.005; // chance per heartbeat to stutter (random camera angle + pitch shift)
+    const max_sttr_chance = 0.35;
     const angle_sttr = 1.05; // maximum angle/pitch shift when stuttering
     const pitch_sttr = 0.85;
 
-    const min_move_chance = 0.0001; // chance per tick to randomly move
-    const max_move_chance = 0.04;
+    const min_move_chance = 0.001; // chance per heartbeat to randomly move
+    const max_move_chance = 0.4;
     const move_amt = 2.1; // random movement velocity
 
-    const bpinc_min_chance = 0.007; // chance of blood pressure increasing by 1 every tick
-    const bpinc_max_chance = 0.07; // chance of blood pressure increasing by 1 every tick
+    const min_drop_chance = 0.001; // chance per heartbeat to drop your current weapon
+    const max_drop_chance = 0.005;
+
+    const bpinc_min_chance = 0.07; // chance of blood pressure increasing every heartbeat
+    const bpinc_max_chance = 0.7;
     const bp_max = 180; // maximum blood pressure
 
-    const min_snd_chance = 0.0002; // chance per tick to emit a random sound (grunt/med/taunt)
-    const max_snd_chance = 0.001;
-
-    const min_drop_chance = 0.0001; // chance per tick to drop your current weapon
-    const max_drop_chance = 0.0005;
+    const min_snd_chance = 0.002; // chance per heartbeat to emit a random sound (grunt/med/taunt)
+    const max_snd_chance = 0.01;
 
     const hp_regen_threshold = 35;
-    const hp_regen_min_chance = 0.01; // chance to regenerate 1 point of hp per tick, if below hp regeneration threshold
-    const hp_regen_max_chance = 0.055;
+    const hp_regen_min_chance = 0.1; // chance to regenerate 1 point of hp per heartbeat, if below hp regeneration threshold
+    const hp_regen_max_chance = 0.55;
 
-    const incap_regen_min = 0; // incap timer reduction per tick (from 1x to 4x speed)
+    const incap_regen_min = 0; // incap timer reduction per heartbeat (from 1x to 4x speed)
     const incap_regen_max = 3;
 
     const fatigue_regen_min = 0; // fatigue reduction per second
@@ -68,7 +68,8 @@ class UaSAlcohol_IntoxDrug : HDDrug {
     override void OnHeartbeat(HDPlayerPawn hdp) {
         super.OnHeartbeat(hdp);
 
-        double intox_perc = clamp(double(amount) / maxAmount, 0.0, 1.0);
+        // let intox_perc = clamp(double(amount) / maxAmount, 0.0, 1.0);
+        let effectRatio = (clamp(amount, min_effect_amt, max_effect_amt) - min_effect_amt) / (max_effect_amt - min_effect_amt);
 
         // Set up tracker connection
         intoxTracker = UaS_AlcoholTracker(hdp.FindInventory("UaS_AlcoholTracker"));
@@ -84,21 +85,25 @@ class UaSAlcohol_IntoxDrug : HDDrug {
 
         if (hdp.countinv("HDStim")) {
             hdp.TakeInventory("HDStim", 4);
-            hdp.TakeInventory("UasAlcohol_IntoxDrug", 5000 - (2000 * (intox_quality + 1.0)));
+            hdp.TakeInventory("UasAlcohol_IntoxDrug", 5000 - (2000 * (intoxTracker.intox_quality + 1.0)));
         }
 
         // Adjust Player Strength
-        // if (hdp.fatigue >= (20 - (amount * 0.0001))) {
-        //     if (hd_debug) console.printf("\c[yellow]Stumbled!");
+        if (uas_alcohol_intox_effects & (1 << 10)) {
+            // The more drunk, the less fatigued you need to be to stumble
+            if (hdp.fatigue >= (20 - (effectRatio * 10.0 * -(intoxTracker.intoxQuality - 1.0)))) {
 
-        //     hdp.strength -= random(1, 2);
-        // } else {
+                // Temporary drop in strength
+                hdp.strength -= random(1, 2);
+            } else {
 
-        //     double ret = min(0.15, amount * 0.003);
-
-        //     // You're gonna be stronger the drunker you are.
-        //     if (hdp.strength < ret + 1) hdp.strength += (hdp.countinv("UasAlcohol_IntoxDrug") * 0.0001);
-        // }
+                // You're gonna be stronger the drunker you are.
+                let strBonus = min(0.15, effectRatio * (intoxTracker.intoxQuality + 1.0));
+                if (hdp.strength < hdp.basestrength() + strBonus) {
+                    hdp.strength += strBonus;
+                }
+            }
+        }
 
         // ----------------
         // Negative effects
@@ -108,73 +113,83 @@ class UaSAlcohol_IntoxDrug : HDDrug {
         // ------------------
         // Looping between min and max blur shader radius
 
-        if (txshd_dir == 0) txshd_dir = 1;
+        if (uas_alcohol_intox_effects & (1 << 0)) {
+            if (hd_debug) console.printf('[UaS Alcohol] Shaders Enabled');
+            if (txshd_dir == 0) txshd_dir = 1;
 
-        if (amount >= min_effect_amt) IntoxShader.Enable(hdp.player);
-        else if (amount < min_effect_amt) IntoxShader.Disable(hdp.player);
+            if (amount >= min_effect_amt) IntoxShader.Enable(hdp.player);
+            else if (amount < min_effect_amt) IntoxShader.Disable(hdp.player);
 
-        if (txshd_dir == 0) txshd_dir = 1;
+            if (txshd_dir == 0) txshd_dir = 1;
 
-        let effectRatio = clamp(amount, min_effect_amt, max_effect_amt) / max_effect_amt;
+            txshd_minr = effectRatio * 2;
+            txshd_maxr = effectRatio * 7;
 
-        txshd_minr = effectRatio * 2;
-        txshd_maxr = effectRatio * 7;
+            if (Level.time % txshd_freq == 0) txshd_r += txshd_dir;
 
-        if (Level.time % txshd_freq == 0) txshd_r += txshd_dir;
+            if (txshd_r >= txshd_maxr) txshd_dir = -1;
+            if (txshd_r <= txshd_minr) txshd_dir = 1;
 
-        if (txshd_r >= txshd_maxr) txshd_dir = -1;
-        if (txshd_r <= txshd_minr) txshd_dir = 1;
-        
-        IntoxShader.SetRadius(hdp.player, txshd_r);
+            IntoxShader.SetRadius(hdp.player, txshd_r);
+        } else {
+            IntoxShader.Disable(hdp.player);
+        }
 
         // Blood Pressure Increase
         // -----------------------
-        double bpinc_chance = bpinc_min_chance + (bpinc_max_chance - bpinc_min_chance) * effectRatio;
-        if (hdp.bloodpressure <= bp_max && frandom(0.0, 1.0) < bpinc_chance) {
-            hdp.bloodpressure++;
+        if (uas_alcohol_intox_effects & (1 << 1)) {
+            double bpinc_chance = bpinc_min_chance + (bpinc_max_chance - bpinc_min_chance) * effectRatio;
+            if (hdp.bloodpressure <= bp_max && frandom(0.0, 1.0) < bpinc_chance) {
+                hdp.bloodpressure += random(1, 10);
+            }
         }
 
         // Black-out Intoxication
         // ----------------------
         // Passing out drunk? In my Hideous? More likely than you think...
-        let blackoutThreshold = tox_blackout_threshold + (tox_blackout_threshold * intoxTracker.intox_quality * 0.25);
-        let currBlackout = hdp.CountInv('UaSAlcohol_BlackoutDrug');
-        if (
-            !currBlackout
-            && tox_blackout_threshold > 0
-            && amount > blackoutThreshold
-            && !hdp.incapacitated
-            && random(0, amount + (amount * -intoxTracker.intox_quality)) > blackoutThreshold
-        ) {
-            let blackoutMax = maxAmount - blackoutThreshold;
-            let blackoutRatio = clamp(amount - blackoutThreshold, 0, blackoutMax) / blackoutMax;
+        if (uas_alcohol_intox_effects & (1 << 2)) {
+            let blackoutThreshold = tox_blackout_threshold + (tox_blackout_threshold * intoxTracker.intox_quality * 0.25);
+            let currBlackout = hdp.CountInv('UaSAlcohol_BlackoutDrug');
+            if (
+                !currBlackout
+                && tox_blackout_threshold > 0
+                && amount > blackoutThreshold
+                && !hdp.incapacitated
+                && random(0, amount + (amount * -intoxTracker.intox_quality)) > blackoutThreshold
+            ) {
+                let blackoutMax = maxAmount - blackoutThreshold;
+                let blackoutRatio = clamp(amount - blackoutThreshold, 0, blackoutMax) / blackoutMax;
 
-            int blackoutAmt = amount * blackoutRatio;
-            hdp.giveInventory("UaSAlcohol_BlackoutDrug", random(blackoutAmt >> 9, blackoutAmt >> 7));
-        } else if (
-            currBlackout
-            && (tox_blackout_threshold <= 0 || amount < blackoutThreshold)
-        ) {
-            hdp.TakeInventory('UaSAlcohol_BlackoutDrug', currBlackout);
+                int blackoutAmt = amount * blackoutRatio;
+                hdp.giveInventory("UaSAlcohol_BlackoutDrug", random(blackoutAmt >> 9, blackoutAmt >> 7));
+            } else if (
+                currBlackout
+                && (tox_blackout_threshold <= 0 || amount < blackoutThreshold)
+            ) {
+                hdp.TakeInventory('UaSAlcohol_BlackoutDrug', currBlackout);
+            }
         }
 
         // Lethal Blood Alcohol Level
         // --------------------------
         // Don't binge drink
-        let deathThreshold = tox_death_threshold + (tox_death_threshold * intoxTracker.intox_quality * 0.1);
-        if (
-            tox_death_threshold > 0
-            && amount > deathThreshold
-            && random(0, amount + (amount * -intoxTracker.intox_quality)) > deathThreshold
-        ) {
-            let deathMax = maxAmount - deathThreshold;
-            let deathRatio = clamp(amount - deathThreshold, 0, deathMax) / deathMax;
+        if (uas_alcohol_intox_effects & (1 << 3)) {
+            let deathThreshold = tox_death_threshold + (tox_death_threshold * intoxTracker.intox_quality * 0.1);
 
-            if (hdp.beatcap > max(6, 20 - (int(amount * deathRatio) >> 6))) hdp.beatcap -= random(1, 3);
+            if (
+                tox_death_threshold > 0
+                && amount > deathThreshold
+                && random(0, amount + (amount * -intoxTracker.intox_quality)) > deathThreshold
+            ) {
+                let deathMax = maxAmount - deathThreshold;
+                let deathRatio = clamp(amount - deathThreshold, 0, deathMax) / deathMax;
 
-            if (hdp.stunned < 10) hdp.stunned += 2;
+                if (hdp.beatcap > max(6, 20 - (int(amount * deathRatio) >> 9))) hdp.beatcap -= random(5, 15);
 
-            if (hdp.bloodpressure < 50 - (hdp.bloodloss >> 4)) hdp.bloodpressure += 4;
+                if (hdp.stunned < 10) hdp.stunned += 10;
+
+                if (hdp.bloodpressure < (HDCONST_MAXBLOODLOSS - hdp.bloodloss)) hdp.bloodpressure += 20;
+            }
         }
 
         // Stuttering and Moving
@@ -182,43 +197,47 @@ class UaSAlcohol_IntoxDrug : HDDrug {
         // Crouching and being incapped no longer jitters you around,
         // bc this is simulating difficulty holding balance,
         // if you crouch or lay down, that's mitigated - [Cozi]
-        if (
-            !(
-                amount < min_effect_amt
-                || hdp.Incapacitated > 0
-                || hdp.player.crouchfactor < 1
-            )
-        ) {
-            double sttr_chance = min_sttr_chance + (max_sttr_chance - min_sttr_chance) * effectRatio;
-            if (frandom(0.0, 1.0) < sttr_chance) {
-                hdp.angle += frandom(-angle_sttr, angle_sttr);
-                hdp.pitch += frandom(-pitch_sttr, pitch_sttr);
-            }
+        if (uas_alcohol_intox_effects & (1 << 4)) {
+            if (
+                !(
+                    amount < min_effect_amt
+                    || hdp.Incapacitated > 0
+                    || hdp.player.crouchfactor < 1
+                )
+            ) {
+                double sttr_chance = min_sttr_chance + (max_sttr_chance - min_sttr_chance) * effectRatio;
+                if (frandom(0.0, 1.0) < sttr_chance) {
+                    hdp.angle += frandom(-angle_sttr, angle_sttr);
+                    hdp.pitch += frandom(-pitch_sttr, pitch_sttr);
+                }
 
-            double move_chance = min_move_chance + (max_move_chance - min_move_chance) * effectRatio;
-            if (frandom(0.0, 1.0) < move_chance) {
-                hdp.A_ChangeVelocity(frandom(-move_amt, move_amt), frandom(-move_amt, move_amt));
-            }
+                double move_chance = min_move_chance + (max_move_chance - min_move_chance) * effectRatio;
+                if (frandom(0.0, 1.0) < move_chance) {
+                    hdp.A_ChangeVelocity(frandom(-move_amt, move_amt), frandom(-move_amt, move_amt));
+                }
 
-            double drop_chance = min_drop_chance + (max_drop_chance - min_drop_chance) * effectRatio;
-            if (frandom(0.0, 1.0) < drop_chance) {
-                HDPlayerPawn.Disarm(hdp);
-                hdp.A_SelectWeapon("HDFist");
+                double drop_chance = min_drop_chance + (max_drop_chance - min_drop_chance) * effectRatio;
+                if (frandom(0.0, 1.0) < drop_chance) {
+                    HDPlayerPawn.Disarm(hdp);
+                    hdp.A_SelectWeapon("HDFist");
+                }
             }
         }
 
         // Making Sounds
         // -------------
         // Only make sounds if "phsyically capable" meaning you're not incapacitated or black-out drunk
-        double snd_chance = min_snd_chance + (max_snd_chance - min_snd_chance) * (effectRatio + (effectRatio * intoxTracker.intox_quality));
-        if (!hdp.incapacitated && frandom(0.0, 1.0) < snd_chance) {
-            int type = frandom(0, 7);
-            if (type < 4) {
-                hdp.A_StartSound(hdp.gruntsound);
-            } else if (type < 7) {
-                hdp.A_StartSound(hdp.medsound);
-            } else {
-                EventHandler.SendNetworkEvent('hd_taunt');
+        if (uas_alcohol_intox_effects & (1 << 5)) {
+            double snd_chance = min_snd_chance + (max_snd_chance - min_snd_chance) * (effectRatio + (effectRatio * intoxTracker.intox_quality));
+            if (!hdp.incapacitated && frandom(0.0, 1.0) < snd_chance) {
+                int type = frandom(0, 7);
+                if (type < 4) {
+                    hdp.A_StartSound(hdp.gruntsound);
+                } else if (type < 7) {
+                    hdp.A_StartSound(hdp.medsound);
+                } else {
+                    EventHandler.SendNetworkEvent('hd_taunt');
+                }
             }
         }
 
@@ -227,51 +246,35 @@ class UaSAlcohol_IntoxDrug : HDDrug {
         // ----------------
 
         // Increased Health Recovery?
-        if (hdp.health <= (hp_regen_threshold + (hp_regen_threshold * intoxTracker.intox_quality))) {
-            double hp_regen_chance = hp_regen_min_chance + (hp_regen_max_chance - hp_regen_min_chance) * (effectRatio + (effectRatio * intoxTracker.intox_quality));
-            if (frandom(0.0, 1.0) < hp_regen_chance) hdp.giveInventory("Health", 1);
+        if (uas_alcohol_intox_effects & (1 << 6)) {
+            if (hdp.health <= (hp_regen_threshold + (hp_regen_threshold * intoxTracker.intox_quality))) {
+                double hp_regen_chance = hp_regen_min_chance + (hp_regen_max_chance - hp_regen_min_chance) * (effectRatio * (intoxTracker.intox_quality + 1.0));
+                if (frandom(0.0, 1.0) < hp_regen_chance) hdp.giveInventory("Health", 1);
+            }
         }
 
         // Reduced Incap
-        if (hdp.incaptimer > 1) {
-            int incap_regen = incap_regen_min + (incap_regen_max - incap_regen_min) * (effectRatio + (effectRatio * intoxTracker.intox_quality));
-            hdp.incaptimer -= incap_regen;
+        if (uas_alcohol_intox_effects & (1 << 7)) {
+            if (hdp.incaptimer > 1) {
+                int incap_regen = incap_regen_min + (incap_regen_max - incap_regen_min) * (effectRatio * (intoxTracker.intox_quality + 1.0));
+                hdp.incaptimer -= incap_regen;
+            }
         }
 
         // And less stunned, at the cost of fatigue!
-        if (hdp.stunned > 0) {
-            hdp.stunned -= max(1, amount * 0.00001);
-            hdp.fatigue += 0.1;
+        if (uas_alcohol_intox_effects & (1 << 8)) {
+            if (hdp.stunned > 0) {
+                hdp.stunned -= max(1, (amount * 0.0001) * effectRatio * (intoxTracker.intoxQuality + 1.0));
+                hdp.fatigue += 0.1;
+            }
         }
 
         // Increased Fatigue Recovery
-        if (hdp.fatigue > 0 && !(Level.time % TICRATE)) {
-            int fatigue_regen = fatigue_regen_min + (fatigue_regen_max - fatigue_regen_min) * (effectRatio + (effectRatio * intoxTracker.intox_quality));
-            hdp.fatigue -= fatigue_regen;
-        }
-    }
-
-    override void ModifyDamage(int damage, Name damageType, out int newDamage, bool passive, Actor inflictor, Actor source, int flags) {
-        let hdp = HDPlayerPawn(owner);
-        let effectRatio = (clamp(amount, dmg_min_amt, dmg_max_amt) * (intoxTracker.intox_quality + 1.0) * 10) / dmg_max_amt;
-
-        if (hdp) {
-            if (passive) {
-    
-                double dmgfact = dmg_fact_min - (dmg_fact_min - dmg_fact_max) * effectRatio;
-                double newdmg = damage * dmgfact;
-    
-                // If there was damage originally and we've reduced it to 0, force it to be 1.
-                if (damage > 0 && newdmg < 1) newdmg = 1;
-    
-                newDamage = newdmg;
-            } else if (hdp && hdp.player.readyWeapon && hdp.player.readyWeapon is "HDFist") {
-    
-                double melee_dmgfact = melee_dmg_fact_min - (melee_dmg_fact_min - melee_dmg_fact_max) * effectRatio;
-                newDamage = damage * melee_dmgfact;
+        if (uas_alcohol_intox_effects & (1 << 9)) {
+            if (hdp.fatigue > 0 && !(Level.time % TICRATE)) {
+                int fatigue_regen = fatigue_regen_min + (fatigue_regen_max - fatigue_regen_min) * (effectRatio * (intoxTracker.intox_quality + 1.0));
+                hdp.fatigue -= fatigue_regen;
             }
-    
-            if (hd_debug) console.printf("Intoxication Damage Buff: Before="..damage..", After="..newDamage);
         }
     }
 }
@@ -285,17 +288,17 @@ class UaSAlcohol_BlackoutDrug : HDDrug {
 
         hdp.Disarm(hdp);
         hdp.A_SelectWeapon("HDIncapWeapon");
-        
+
         hdp.incapacitated++;
         hdp.incaptimer = amount; //This is my hacky "stay down" fix, please don't mess with it - Cozi
-        
+
         hdp.muzzleclimb1 += (0, frandom(8, 4));
         hdp.stunned++;
-        
+
         hdp.AddBlackout(256, 2, 4, 24);
 
         amount--;
-        
+
         if (hd_debug >= 4) console.printf("Passed out for "..amount..", IntoxDrug: "..hdp.countinv("UasAlcohol_IntoxDrug"));
     }
 }
@@ -311,7 +314,7 @@ class UaSAlcohol_AddictDrug : HDDrug {
 
             hdp.fatigue += 1;
             hdp.stunned += 2;
-            
+
             if (hdp.beatcap < 30) hdp.beatcap++;
 
             if (hd_debug >= 4) console.printf("Going through withdrawals for "..amount);

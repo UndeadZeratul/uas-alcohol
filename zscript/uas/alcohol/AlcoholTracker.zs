@@ -41,13 +41,17 @@ class UaS_AlcoholTracker : Inventory {
             // -100% -> 2x chance
             //    0% -> 1x chance
             // +100% -> 0x chance
-            let addictRatio = (2.0 - (intox_quality + 1.0));
-            if ((random() * addictRatio) > burnoff) {
-                let newAddict = int(ceil(addictRatio));
 
-                if (hd_debug) console.printf("Gained a point of addiction, current: "..(addictTokens + newAddict));
+            if (uas_alcohol_intox_effects & (1 << 11)) {
+                if (hd_debug) console.printf('[UaS Alcohol] Addicition Enabled');
+                let addictRatio = (2.0 - (intox_quality + 1.0));
+                if ((random() * addictRatio) > burnoff) {
+                    let newAddict = int(ceil(addictRatio));
 
-                o.GiveInventory('UaSAlcohol_AddictDrug', newAddict);
+                    if (hd_debug) console.printf("Gained a point of addiction, current: "..(addictTokens + newAddict));
+
+                    o.GiveInventory('UaSAlcohol_AddictDrug', newAddict);
+                }
             }
         }
 
@@ -68,6 +72,10 @@ class UaS_AlcoholTracker : Inventory {
     }
 
     void Consume(int addIntox = 0, float intoxQuality = 0.0) {
+
+        // If we've disabled every effect, quit.
+        if (!uas_alcohol_intox_effects) return;
+
         let currentIntox = pending_intox;
 
         if (hd_debug) console.printf("Comsuming "..addIntox.." units of intox...");

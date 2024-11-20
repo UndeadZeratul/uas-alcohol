@@ -18,13 +18,17 @@ class UaS_Alcohol : UaS_Consumable {
 
     override void OnConsume() {
         HDPlayerPawn hdp = HDPlayerPawn(intoxTracker.owner);
-        if (hdp) {
-            ConsumeAlcohol();
-        }
+
+        if (hdp) ConsumeAlcohol();
     }
 
     void ConsumeAlcohol() {
+
+        // If there's no alcohol being consumed, quit.
         if (intox_per_bulk <= 0) return;
+
+        // If we've disabled every effect, quit.
+        if (!uas_alcohol_intox_effects) return;
 
         let intox = intox_per_bulk * diffBulk;
 

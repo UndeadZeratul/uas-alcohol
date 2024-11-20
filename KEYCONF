@@ -1,0 +1,1 @@
+alias uas_alcohol_reset_cvars = "resetcvar uas_alcohol_intox_effects;";

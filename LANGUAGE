@@ -1,3 +1,24 @@
 [en default]
 
-UAS_ALCOHOL_DISPLAY_INTOX = "\ce%i Proof\n";
+UAS_ALCOHOL_DISPLAY_INTOX       = "\ce%i Proof\n";
+
+// STANDARD MENU LABELS
+MENU_RESETALLOPTIONS            = "Reset all Options";
+
+// MENU LABELS
+UAS_ALCOHOL_MENU                = "Ugly as Sin: Alcohol";
+UAS_ALCOHOL_INTOX_EFFECTS       = "Intoxication Effects:";
+
+// INTOX EFFECTS LABELS
+UAS_ALCOHOL_INTOX_SHADERS       = "Intox Shaders";
+UAS_ALCOHOL_INTOX_BLOODPRESSURE = "Increased Blood Pressure";
+UAS_ALCOHOL_INTOX_BLACKOUT      = "Blackout Drunk";
+UAS_ALCOHOL_INTOX_DEATH         = "Alcohol Poisoning (Death)";
+UAS_ALCOHOL_INTOX_STUMBLING     = "Drunken Stumbling";
+UAS_ALCOHOL_INTOX_SOUNDS        = "Uncontrollable Taunting";
+UAS_ALCOHOL_INTOX_HEALING       = "Improved Healing";
+UAS_ALCOHOL_INTOX_STUN          = "Reduced Stun";
+UAS_ALCOHOL_INTOX_INCAP         = "Reduced Incap";
+UAS_ALCOHOL_INTOX_FATIGUE       = "Reduced Fatigue";
+UAS_ALCOHOL_INTOX_MELEE_DAMAGE  = "Drink hard, hit hard";
+UAS_ALCOHOL_INTOX_ADDICTION     = "Alcohol Addiction";

@@ -1,0 +1,34 @@
+AddOptionMenu "OptionsMenu"
+{
+	Submenu "$UAS_ALCOHOL_MENU", "UasAlcoholMenu"
+}
+
+AddOptionMenu "HDAddonMenu"
+{
+	Submenu "$UAS_ALCOHOL_MENU", "UasAlcoholMenu"
+}
+
+OptionMenu "UasAlcoholMenu"
+{
+	Title "$UAS_ALCOHOL_MENU"
+
+	StaticText "$UAS_ALCOHOL_INTOX_EFFECTS", "White"
+	StaticText ""
+
+    FlagOption "$UAS_ALCOHOL_INTOX_SHADERS",       "uas_alcohol_intox_effects", "OnOff", 0
+    FlagOption "$UAS_ALCOHOL_INTOX_BLOODPRESSURE", "uas_alcohol_intox_effects", "OnOff", 1
+    FlagOption "$UAS_ALCOHOL_INTOX_BLACKOUT",      "uas_alcohol_intox_effects", "OnOff", 2
+    FlagOption "$UAS_ALCOHOL_INTOX_DEATH",         "uas_alcohol_intox_effects", "OnOff", 3
+    FlagOption "$UAS_ALCOHOL_INTOX_STUMBLING",     "uas_alcohol_intox_effects", "OnOff", 4
+    FlagOption "$UAS_ALCOHOL_INTOX_SOUNDS",        "uas_alcohol_intox_effects", "OnOff", 5
+    FlagOption "$UAS_ALCOHOL_INTOX_HEALING",       "uas_alcohol_intox_effects", "OnOff", 6
+    FlagOption "$UAS_ALCOHOL_INTOX_INCAP",         "uas_alcohol_intox_effects", "OnOff", 7
+    FlagOption "$UAS_ALCOHOL_INTOX_STUN",          "uas_alcohol_intox_effects", "OnOff", 8
+    FlagOption "$UAS_ALCOHOL_INTOX_FATIGUE",       "uas_alcohol_intox_effects", "OnOff", 9
+    FlagOption "$UAS_ALCOHOL_INTOX_MELEE_DAMAGE",  "uas_alcohol_intox_effects", "OnOff", 10
+    FlagOption "$UAS_ALCOHOL_INTOX_ADDICTION",     "uas_alcohol_intox_effects", "OnOff", 11
+	StaticText ""
+
+	SafeCommand "$MENU_RESETALLOPTIONS", "uas_alcohol_reset_cvars"
+	StaticText ""
+}
