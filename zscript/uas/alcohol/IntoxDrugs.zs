@@ -91,14 +91,14 @@ class UaSAlcohol_IntoxDrug : HDDrug {
         // Adjust Player Strength
         if (uas_alcohol_intox_effects & (1 << 10)) {
             // The more drunk, the less fatigued you need to be to stumble
-            if (hdp.fatigue >= (20 - (effectRatio * 10.0 * -(intoxTracker.intoxQuality - 1.0)))) {
+            if (hdp.fatigue >= (20 - (effectRatio * 10.0 * -(intoxTracker.intox_quality - 1.0)))) {
 
                 // Temporary drop in strength
                 hdp.strength -= random(1, 2);
             } else {
 
                 // You're gonna be stronger the drunker you are.
-                let strBonus = min(0.15, effectRatio * (intoxTracker.intoxQuality + 1.0));
+                let strBonus = min(0.15, effectRatio * (intoxTracker.intox_quality + 1.0));
                 if (hdp.strength < hdp.basestrength() + strBonus) {
                     hdp.strength += strBonus;
                 }
@@ -264,7 +264,7 @@ class UaSAlcohol_IntoxDrug : HDDrug {
         // And less stunned, at the cost of fatigue!
         if (uas_alcohol_intox_effects & (1 << 8)) {
             if (hdp.stunned > 0) {
-                hdp.stunned -= max(1, (amount * 0.0001) * effectRatio * (intoxTracker.intoxQuality + 1.0));
+                hdp.stunned -= max(1, (amount * 0.0001) * effectRatio * (intoxTracker.intox_quality + 1.0));
                 hdp.fatigue += 0.1;
             }
         }
